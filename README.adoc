@@ -1,0 +1,1 @@
+A simple library for calculating the min, max, average, and median times it takes for an Arduino to step through the loop code.
