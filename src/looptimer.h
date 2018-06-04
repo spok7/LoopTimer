@@ -15,6 +15,10 @@ class LoopTimer {
 		unsigned long timeDelay;
 
 		unsigned long *timestamps;
+		uint8_t loopCount;
+
+		static void sort(unsigned long *list, uint8_t range);
+		static unsigned long avg(unsigned long *list, uint8_t range);
 
 	public:
 		LoopTimer(uint16_t range);
