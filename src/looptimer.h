@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <Arduino.h>
+#include <MemoryFree.h>
 
 class LoopTimer {
 	private:
@@ -15,6 +16,7 @@ class LoopTimer {
 		unsigned long timeDelay;
 
 		unsigned long *timestamps;
+		unsigned long *potato;
 		uint8_t loopCount;
 
 		static void sort(unsigned long *list, uint8_t range);
