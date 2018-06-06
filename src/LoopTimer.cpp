@@ -1,14 +1,12 @@
 #include "LoopTimer.h"
 #include "stdlib.h"
+#include <MemoryFree.h>
 
-LoopTimer::LoopTimer(uint16_t range) {
-    Serial.begin(9600);
-    delay(3000);
-    Serial.print(F("\nInitial Free Memory: "));
-    Serial.println(freeMemory(), DEC);
+LoopTimer::LoopTimer(uint16_t range, uint16_t buffer) {
+    Serial.begin(1200);
 
     firstRun = true;
-    this->range = range;
+    runsLeft = 5;
     setupDifference = 0;
     numMinEntries = 1;
     numMaxEntries = 1;
@@ -16,17 +14,14 @@ LoopTimer::LoopTimer(uint16_t range) {
     loopDelay = 0;
     timeDelay = 0;
 
-    timestamps = new unsigned long [range];
-    for (uint16_t i = 0; i < range; ++i) {
-        Serial.print(timestamps[i] = i);
-        Serial.print(F(" "));
-    }
+    this->range = ((freeMemory() - buffer) / 4 < range) ? (freeMemory() - buffer) / 4 : range;
+    timestamps = new unsigned long [this->range];
 
     loopCount = 0;
 
     Serial.println(F("\n\nSetup has initialized."));
-    Serial.print(F("Range: "));
-    Serial.println(range);
+    Serial.print(F("Range (after deadband): "));
+    Serial.println(this->range);
 
     Serial.print(F("Free Memory after setup: "));
     Serial.println(freeMemory(), DEC);
@@ -34,6 +29,10 @@ LoopTimer::LoopTimer(uint16_t range) {
 
 void LoopTimer::countSetupFromHere() {
     setupDifference = millis();
+}
+
+void LoopTimer::setNumRuns(uint8_t num) {
+    runsLeft = num;
 }
 
 void LoopTimer::setNumMinEntries(uint8_t num) {
@@ -57,15 +56,13 @@ void LoopTimer::delayByTime(uint32_t ms) {
 }
 
 static void LoopTimer::sort(unsigned long *list, uint16_t range) {
-    unsigned long i, key, j;
-    for (i = 1; i < range; ++i) {
-        key = list[i];
-        j = i - 1;
-        while (j >= 0 && list[j] > key) {
-            list[j + 1] = list[j];
-            --j;
+    unsigned long temp = 0;
+    for (uint16_t i = 1; i < range; ++i) {
+        for (uint16_t j = i; j > 0 && list[j] < list[j - 1]; --j) {
+            temp = list[j];
+            list[j] = list[j - 1];
+            list[j - 1] = temp;
         }
-        list[j + 1] = key;
     }
 }
 
@@ -76,29 +73,49 @@ static unsigned long LoopTimer::avg(unsigned long *list, uint16_t range) {
 }
 
 void LoopTimer::update() {
-    delay(2000);
-    Serial.print(F("Loop: "));
-    Serial.println(loopCount);
+    // Serial.print(F("Loop: "));  // debug
+    // Serial.println(loopCount);  // debug
     if (loopCount < range) {
         timestamps[loopCount] = millis();
-        Serial.print(F("  Timestamp: "));
-        Serial.println(timestamps[loopCount]);
+        // Serial.print(F("  Timestamp: "));       // debug
+        // Serial.println(timestamps[loopCount]);  // debug
         ++loopCount;
     } else {
 
         if (firstRun) {
-            Serial.print("Set up: ");
-            Serial.println(timestamps[0] - setupDifference);
+            Serial.print(F("\nSet up time: "));
+            Serial.print(timestamps[0] - setupDifference);
+            Serial.println(F("ms"));
             firstRun = false;
         }
 
-        Serial.print("Average: ");
-        Serial.println(avg(timestamps + 1, range - 1));
+        for (int i = 1; i < range; ++i) {
+            Serial.print(timestamps[i]);
+            Serial.print(F(" "));
+        }
 
+        Serial.println();
 
         for (int i = range - 1; i > 0; --i)
             timestamps[i] -= timestamps[i - 1];
+
+        for (int i = 1; i < range; ++i) {
+            Serial.print(timestamps[i]);
+            Serial.print(F(" "));
+        }
+
+        Serial.println();
+
         sort(timestamps + 1, range - 1);
+
+        for (int i = 1; i < range; ++i) {
+            Serial.print(timestamps[i]);
+            Serial.print(F(" "));
+        }
+
+        Serial.print(F("\nAverage: "));
+        Serial.print(avg(timestamps + 1, range - 1));
+        Serial.println(F("ms"));
 
         // val/count pairs
         uint16_t currentMean[] = {0, 0};
@@ -117,27 +134,30 @@ void LoopTimer::update() {
             }
         }
 
-        Serial.print("Mean: ");
+        Serial.print(F("Mean: "));
         Serial.print(potentialMean[0]);
-        Serial.print("\tCount: ");
-        Serial.println(potentialMean[1]);
+        Serial.print(F("ms\tCount: "));
+        Serial.print(potentialMean[1]);
+        Serial.println(F("ms"));
 
 
         if (numMinEntries != 0) {
-            Serial.print("Min(s):");
+            Serial.print(F("Min(s): "));
             for (uint8_t i = 1; i < numMinEntries + 1; ++i) {
-                Serial.print(" ");
                 Serial.print(timestamps[i]);
+                Serial.print(F("ms "));
             }
         }
 
         if (numMaxEntries != 0) {
-            Serial.print("Max(s):");
+            Serial.print(F("\nMax(s): "));
             for (uint8_t i = range - 1; i > range - numMaxEntries - 1; --i) {
-                Serial.print(" ");
                 Serial.print(timestamps[i]);
+                Serial.print(F("ms "));
             }
         }
+
+        Serial.println(F("\nDone."));
 
         loopCount = 1;
     }

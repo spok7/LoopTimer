@@ -3,11 +3,12 @@
 
 #include <stdint.h>
 #include <Arduino.h>
-#include <MemoryFree.h>
+#define SPARERAM 50
 
 class LoopTimer {
 	private:
 		bool firstRun;
+		uint8_t runsLeft;
 		uint16_t range;
 		uint16_t loopCount;
 		unsigned long setupDifference;
@@ -22,8 +23,9 @@ class LoopTimer {
 		static unsigned long avg(unsigned long *list, uint16_t range);
 
 	public:
-		LoopTimer(uint16_t range);
+		LoopTimer(uint16_t range, uint16_t buffer = 50);
 		void countSetupFromHere();
+		void setNumRuns(uint8_t);
 		void setNumMinEntries(uint8_t);
 		void setNumMaxEntries(uint8_t);
 		void setNumMedianEntries(uint8_t);
