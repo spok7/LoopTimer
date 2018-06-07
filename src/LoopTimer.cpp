@@ -52,11 +52,11 @@ LoopTimer* LoopTimer::setNumModeEntries(uint8_t num) {
     return this;
 }
 
-void LoopTimer::delayByLoops(uint16_t num) {
+LoopTimer* LoopTimer::delayByLoops(uint16_t num) {
     loopDelay = num;
 }
 
-void LoopTimer::delayByTime(uint32_t ms) {
+LoopTimer* LoopTimer::delayByTime(uint32_t ms) {
     timeDelay = ms;
 }
 

@@ -15,8 +15,8 @@ class LoopTimer {
 		uint8_t numMinEntries;
 		uint8_t numMaxEntries;
 		uint8_t numModeEntries;
-		// uint16_t loopDelay;
-		// unsigned long timeDelay;
+		uint16_t loopDelay;
+		unsigned long timeDelay;
 		unsigned long *timestamps;
 
 		static void sort(unsigned long *list, uint16_t range);
@@ -31,8 +31,8 @@ class LoopTimer {
 		LoopTimer* setNumMinEntries(uint8_t);
 		LoopTimer* setNumMaxEntries(uint8_t);
 		LoopTimer* setNumModeEntries(uint8_t);
-		// void delayByLoops(uint16_t);
-		// void delayByTime(uint32_t);
+		LoopTimer* delayByLoops(uint16_t);
+		LoopTimer* delayByTime(uint32_t);
 		void update();
 };
 
