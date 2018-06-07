@@ -10,7 +10,7 @@ LoopTimer::LoopTimer(uint16_t range, uint16_t buffer) {
     setupDifference = 0;
     numMinEntries = 1;
     numMaxEntries = 1;
-    numMedianEntries = 1;
+    numModeEntries = 1;
     loopDelay = 0;
     timeDelay = 0;
 
@@ -27,24 +27,29 @@ LoopTimer::LoopTimer(uint16_t range, uint16_t buffer) {
     Serial.println(freeMemory(), DEC);
 }
 
-void LoopTimer::countSetupFromHere() {
+LoopTimer* LoopTimer::countSetupFromHere() {
     setupDifference = millis();
+    return this;
 }
 
-void LoopTimer::setNumRuns(uint8_t num) {
+LoopTimer* LoopTimer::setNumRuns(uint8_t num) {
     runsLeft = num;
+    return this;
 }
 
-void LoopTimer::setNumMinEntries(uint8_t num) {
-    numMinEntries = num;
+LoopTimer* LoopTimer::setNumMinEntries(uint8_t num) {
+    numMinEntries = (num > range) ? range : num;
+    return this;
 }
 
-void LoopTimer::setNumMaxEntries(uint8_t num) {
-    numMaxEntries = num;
+LoopTimer* LoopTimer::setNumMaxEntries(uint8_t num) {
+    numMaxEntries = (num > range) ? range : num;
+    return this;
 }
 
-void LoopTimer::setNumMedianEntries(uint8_t num) {
-    numMedianEntries = num;
+LoopTimer* LoopTimer::setNumModeEntries(uint8_t num) {
+    numModeEntries = num;
+    return this;
 }
 
 void LoopTimer::delayByLoops(uint16_t num) {
@@ -66,6 +71,43 @@ static void LoopTimer::sort(unsigned long *list, uint16_t range) {
     }
 }
 
+static void LoopTimer::shift(uint16_t **modes, uint8_t amount, uint16_t potentialMode[]) {
+    modes[amount - 1][0] = potentialMode[0];
+    modes[amount - 1][1] = potentialMode[1];
+    for (int j = amount - 2; j >= 0 && modes[j][1] < modes[j + 1][1]; --j) {
+        potentialMode[0] = modes[j][0];
+        potentialMode[1] = modes[j][1];
+        modes[j][0] = modes[j + 1][0];
+        modes[j][1] = modes[j + 1][1];
+        modes[j + 1][0] = potentialMode[0];
+        modes[j + 1][1] = potentialMode[1];
+    }
+}
+
+static void LoopTimer::modesFromSorted(uint16_t **modes, uint8_t amount, unsigned long *list, uint16_t range) {
+
+    for (uint8_t i = 0; i < amount; ++i) {
+        modes[i][0] = 0;
+        modes[i][1] = 0;
+    }
+
+    uint16_t potentialMode[] = {(uint16_t) list[0], 1};
+
+    for (uint16_t i = 1; i < range; ++i) {
+        if (list[i] == potentialMode[0]) {
+            ++potentialMode[1];
+        } else if (potentialMode[1] > modes[amount - 1][1]) {
+            shift(modes, amount, potentialMode);
+            potentialMode[0] = list[i];
+            potentialMode[1] = 1;
+        }
+
+        if (i == range - 1 && potentialMode[1] > modes[amount - 1][1]) {
+            shift(modes, amount, potentialMode);
+        }
+    }
+}
+
 static unsigned long LoopTimer::avg(unsigned long *list, uint16_t range) {
     unsigned long total = 0;
     for (uint8_t i = 0; i < range; ++i) total += list[i];
@@ -73,12 +115,15 @@ static unsigned long LoopTimer::avg(unsigned long *list, uint16_t range) {
 }
 
 void LoopTimer::update() {
-    // Serial.print(F("Loop: "));  // debug
-    // Serial.println(loopCount);  // debug
+
+    if (loopCount < loopDelay || millis() < timeDelay) {
+        ++loopCount;
+        return;
+    }
+    
+    if (runsLeft == 0) return;
     if (loopCount < range) {
         timestamps[loopCount] = millis();
-        // Serial.print(F("  Timestamp: "));       // debug
-        // Serial.println(timestamps[loopCount]);  // debug
         ++loopCount;
     } else {
 
@@ -89,60 +134,46 @@ void LoopTimer::update() {
             firstRun = false;
         }
 
-        for (int i = 1; i < range; ++i) {
-            Serial.print(timestamps[i]);
-            Serial.print(F(" "));
-        }
-
-        Serial.println();
-
+        // calculate differences
         for (int i = range - 1; i > 0; --i)
             timestamps[i] -= timestamps[i - 1];
 
-        for (int i = 1; i < range; ++i) {
-            Serial.print(timestamps[i]);
-            Serial.print(F(" "));
-        }
-
-        Serial.println();
-
-        sort(timestamps + 1, range - 1);
-
-        for (int i = 1; i < range; ++i) {
-            Serial.print(timestamps[i]);
-            Serial.print(F(" "));
-        }
-
-        Serial.print(F("\nAverage: "));
+        Serial.print(F("\n\nMean: "));
         Serial.print(avg(timestamps + 1, range - 1));
         Serial.println(F("ms"));
 
-        // val/count pairs
-        uint16_t currentMean[] = {0, 0};
-        uint16_t potentialMean[] = {0, 0};
+        sort(timestamps + 1, range - 1);
 
-        for (uint16_t i = 1; i < range; ++i) {
-            if (timestamps[i] == currentMean[0]) {
-                ++currentMean[1];
-                if (currentMean[1] > potentialMean[1]) {
-                    potentialMean[0] = currentMean[0];
-                    potentialMean[1] = currentMean[1];
-                }
-            } else {
-                currentMean[0] = timestamps[i];
-                currentMean[1] = 1;
-            }
-        }
-
-        Serial.print(F("Mean: "));
-        Serial.print(potentialMean[0]);
-        Serial.print(F("ms\tCount: "));
-        Serial.print(potentialMean[1]);
+        Serial.print(F("Median: "));
+        Serial.print(timestamps[range / 2]);
         Serial.println(F("ms"));
 
+        if (numModeEntries != 0) {
+            uint16_t **modes = new uint16_t*[numModeEntries];
+            for (int i = 0; i < numModeEntries; ++i) {
+                modes[i] = new uint16_t[2];
+            }
+
+            modesFromSorted(modes, numModeEntries, timestamps + 1, range - 1);
+
+            Serial.print(F("Modes (val/count):"));
+            for (int i = 0; i < numModeEntries; ++i) {
+                Serial.print(F(" ["));
+                Serial.print(modes[i][0]);
+                Serial.print(F(", "));
+                Serial.print(modes[i][1]);
+                Serial.print(F("]"));
+            }
+
+            for (int i = 0; i < numModeEntries; ++i) {
+                delete[] modes[i];
+            }
+            delete[] modes;
+        }
+        
 
         if (numMinEntries != 0) {
-            Serial.print(F("Min(s): "));
+            Serial.print(F("\nMin(s): "));
             for (uint8_t i = 1; i < numMinEntries + 1; ++i) {
                 Serial.print(timestamps[i]);
                 Serial.print(F("ms "));
@@ -157,8 +188,7 @@ void LoopTimer::update() {
             }
         }
 
-        Serial.println(F("\nDone."));
-
-        loopCount = 1;
+        loopCount = 0;
+        --runsLeft;
     }
 }
