@@ -116,8 +116,8 @@ static unsigned long LoopTimer::avg(unsigned long *list, uint16_t range) {
 
 void LoopTimer::update() {
 
-    if (loopCount < loopDelay || millis() < timeDelay) {
-        ++loopCount;
+    if (loopDelay != 0 || millis() < timeDelay) {
+        --loopDelay;
         return;
     }
     
