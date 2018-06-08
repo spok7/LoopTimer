@@ -22,7 +22,8 @@ LoopTimer::LoopTimer(uint16_t range, uint16_t buffer) {
     Serial.println(F("\n\nSetup has initialized."));
     Serial.print(F("Range (after deadband): "));
     Serial.println(this->range);
-
+    Serial.print(F("Number of results: "));
+    Serial.println(this->range - 1);
     Serial.print(F("Free Memory after setup: "));
     Serial.println(freeMemory(), DEC);
 }
@@ -38,17 +39,17 @@ LoopTimer* LoopTimer::setNumRuns(uint8_t num) {
 }
 
 LoopTimer* LoopTimer::setNumMinEntries(uint8_t num) {
-    numMinEntries = (num > range) ? range : num;
+    numMinEntries = (num >= range) ? range - 1 : num;
     return this;
 }
 
 LoopTimer* LoopTimer::setNumMaxEntries(uint8_t num) {
-    numMaxEntries = (num > range) ? range : num;
+    numMaxEntries = (num >= range) ? range - 1 : num;
     return this;
 }
 
 LoopTimer* LoopTimer::setNumModeEntries(uint8_t num) {
-    numModeEntries = num;
+    numModeEntries = (num >= range) ? range - 1 : num;
     return this;
 }
 
@@ -91,13 +92,15 @@ static void LoopTimer::modesFromSorted(uint16_t **modes, uint8_t amount, unsigne
         modes[i][1] = 0;
     }
 
-    uint16_t potentialMode[] = {(uint16_t) list[0], 1};
+    uint16_t potentialMode[] = {0, 0};
 
-    for (uint16_t i = 1; i < range; ++i) {
+    for (uint16_t i = 0; i < range; ++i) {
         if (list[i] == potentialMode[0]) {
             ++potentialMode[1];
-        } else if (potentialMode[1] > modes[amount - 1][1]) {
-            shift(modes, amount, potentialMode);
+        } else {
+            if (potentialMode[1] > modes[amount - 1][1]) {
+                shift(modes, amount, potentialMode);
+            }
             potentialMode[0] = list[i];
             potentialMode[1] = 1;
         }
@@ -138,7 +141,7 @@ void LoopTimer::update() {
         for (int i = range - 1; i > 0; --i)
             timestamps[i] -= timestamps[i - 1];
 
-        Serial.print(F("\n\nMean: "));
+        Serial.print(F("\n\nMean (rounded up): "));
         Serial.print(avg(timestamps + 1, range - 1));
         Serial.println(F("ms"));
 
@@ -157,7 +160,7 @@ void LoopTimer::update() {
             modesFromSorted(modes, numModeEntries, timestamps + 1, range - 1);
 
             Serial.print(F("Modes (val/count):"));
-            for (int i = 0; i < numModeEntries; ++i) {
+            for (int i = 0; i < numModeEntries && modes[i][1] != 0; ++i) {
                 Serial.print(F(" ["));
                 Serial.print(modes[i][0]);
                 Serial.print(F(", "));
